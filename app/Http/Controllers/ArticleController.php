@@ -15,7 +15,6 @@ class ArticleController extends Controller
     {
         set_time_limit(300);
 
-        // Validation
         $validated = $request->validate([
             'keyword' => 'required|string',
             'headers' => 'nullable|array',
@@ -25,8 +24,11 @@ class ArticleController extends Controller
             'additional_keywords' => 'nullable|string',
             'style' => 'required|string',
             'language' => 'required|string',
-            'article_length' => 'required|integer|min:0|max:100',
+            'article_length' => 'required|integer|min:1|max:5',
             'content' => 'nullable|string',
+            'model' => 'required|string',
+            'format' => 'required|string|in:Blog,Lista,Guía',
+            'takeaways' => 'nullable|boolean'
         ]);
 
         if (!$request->user()->api_key) {
@@ -35,31 +37,46 @@ class ArticleController extends Controller
                     'error' => 'API key is missing. Please add an API key in your profile settings.',
                 ],
                 400
-            );  // Send a 400 (Bad Request) response
+            );
         }
 
-        // Get the API key from the logged-in user or fallback to the default key
-        $apiKey = $request->user()->api_key ?? env('OPENAI_API_KEY');
+        $headersString = "";
 
-        // System message setup
-        $system = "Estás a cargo de escribir un blog post en formato markdown. Escribe en oraciones cortas, medianas, y largas para un mejor flujo. Evita el relleno y trata de ir directo al punto. Cada palabra debe revelar información importante del tema. Escribe en un tono {$validated['style']}, en {$validated['language']}. No des conclusiones, ni resumenes hasta que se te indique.";
+        // Recorrer los headers validados (H2 y H3)
+        foreach ($validated['headers'] as $header) {
+            // Agregar el H2 al string
+            $headersString .= "H2: " . $header['h2'] . "\n";
+
+            // Verificar si existen H3 y agregarlos
+            if (isset($header['h3']) && is_array($header['h3'])) {
+                foreach ($header['h3'] as $h3) {
+                    $headersString .= "H3: " . $h3 . "\n";
+                }
+            }
+        }
+
+        $apiKey = $request->user()->api_key;
+
+        $systemh2 = "Estás a cargo de escribir un blog post en formato markdown usando solo h2 para los headers que se te va a indicar. Escribe en una combinación de oraciones cortas, medianas, y largas para un mejor flujo. Evita el relleno y trata de ir directo al punto. Cada palabra debe revelar información importante y pertinente del tema. Escribe en un tono {$validated['style']}, en {$validated['language']}. El artículo debe tener un formato tipo {$validated['format']}. No hagas más headers de los ya enviados";
+
+        $systemh3 = "Estás a cargo de escribir un blog post en formato markdown usando solo h3 para los headers que se te va a indicar. Escribe en una combinación de oraciones cortas, medianas, y largas para un mejor flujo. Evita el relleno y trata de ir directo al punto. Cada palabra debe revelar información importante y pertinente del tema. Escribe en un tono {$validated['style']}, en {$validated['language']}. El artículo debe tener un formato tipo {$validated['format']}. No hagas más headers de los ya enviados";
+
+        $systemKeyTakeaways = "Estás a cargo de escribir una introducción a un blog post en formato markdown usando el tema que se te va a indicar. Escribe en una combinación de oraciones cortas, medianas, y largas para un mejor flujo. Evita el relleno y trata de ir directo al punto. Cada palabra debe revelar información importante y pertinente del tema. Escribe en un tono {$validated['style']}, en {$validated['language']}. No escribas más de lo solicitado.";
 
         $fullContent = "";
-        $iteration = 0;
 
-        // Loop through each header and send API requests
-        foreach ($validated['headers'] as $header) {
-            $userCommand = "Escribe una sección extensa sobre '{$header['h2']}'. Debes de usar estos subtemas: '" . implode(', ', $header['h3']) . "'. Usa también las keywords: '{$validated['additional_keywords']}'.";
+        if ($validated['takeaways']) {
 
+            $takeawaysCommand = "Responde a este tema o pregunta de inmediato {$validated['keyword']}, considerando que se hablará de estos temas: {$headersString} \n . No ocultes lo principal, hazlo en cuatro oraciones usando algunas {$validated['additional_keywords']} o LSIs. Luego, escribe una introducción para el tema ({$validated['keyword']}). Asegúrate de intrigar al lector porque tenemos información valiosa más adelante. Finalmente, escribe en una lista conclusiones clave para que el usuario tenga una idea veloz de las ideas principales del tema ";
 
-            $response = Http::withToken($apiKey)
+            $responseTakeaways = Http::withToken($apiKey)
                 ->withOptions(['verify' => false])
                 ->timeout(240)
                 ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-3.5-turbo',
+                    'model' => $validated['model'],
                     'messages' => [
-                        ['role' => 'system', 'content' => $system],
-                        ['role' => 'user', 'content' => $userCommand]
+                        ['role' => 'system', 'content' => $systemKeyTakeaways],
+                        ['role' => 'user', 'content' => $takeawaysCommand]
                     ],
                     'max_tokens' => 4000,
                     'temperature' => 1,
@@ -68,8 +85,54 @@ class ArticleController extends Controller
                     'presence_penalty' => 0.3
                 ]);
 
-            $generatedContent = $response->json('choices.0.message.content');
-            $fullContent .= $generatedContent . "\n\n";
+            $generatedTakeaways = $responseTakeaways->json('choices.0.message.content');
+            $fullContent .= "# {$validated['keyword']}\n\n" . $generatedTakeaways . "\n\n";
+        }
+
+        foreach ($validated['headers'] as $header) {
+            $h2Command = "Escribe una introducción extensa sobre '{$header['h2']}'. Usa Latent Semantic Indexing de las keywords: '{$validated['additional_keywords']}'.";
+
+            $responseH2 = Http::withToken($apiKey)
+                ->withOptions(['verify' => false])
+                ->timeout(240)
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => $validated['model'],
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemh2],
+                        ['role' => 'user', 'content' => $h2Command]
+                    ],
+                    'max_tokens' => 4000,
+                    'temperature' => 1,
+                    'top_p' => 0.8,
+                    'frequency_penalty' => 0.3,
+                    'presence_penalty' => 0.3
+                ]);
+
+            $generatedH2Content = $responseH2->json('choices.0.message.content');
+            $fullContent .= $generatedH2Content . "\n\n";
+
+            foreach ($header['h3'] as $subheader) {
+                $h3Command = "Explica el subtema '{$subheader}'. usando Latent Semantic Indexing de las keywords: '{$validated['additional_keywords']}'.";
+
+                $responseH3 = Http::withToken($apiKey)
+                    ->withOptions(['verify' => false])
+                    ->timeout(240)
+                    ->post('https://api.openai.com/v1/chat/completions', [
+                        'model' => $validated['model'],
+                        'messages' => [
+                            ['role' => 'system', 'content' => $systemh3],
+                            ['role' => 'user', 'content' => $h3Command]
+                        ],
+                        'max_tokens' => 4000,
+                        'temperature' => 1,
+                        'top_p' => 0.8,
+                        'frequency_penalty' => 0.3,
+                        'presence_penalty' => 0.3
+                    ]);
+
+                $generatedH3Content = $responseH3->json('choices.0.message.content');
+                $fullContent .= $generatedH3Content . "\n\n";
+            }
         }
 
 
@@ -85,79 +148,6 @@ class ArticleController extends Controller
         ]);
     }
 
-    /* public function generate(Request $request)
-    {
-
-
-        $validated = $request->validate([
-            'keyword' => 'required|string',
-            'headers' => 'nullable|array',
-            'headers.*.h2' => 'required|string',
-            'headers.*.h3' => 'nullable|array',
-            'headers.*.h3.*' => 'nullable|string',
-            'additional_keywords' => 'nullable|string',
-            'style' => 'required|string',
-            'language' => 'required|string',
-            'article_length' => 'required|integer|min:0|max:100',
-            'content' => 'nullable|string',
-        ]);
-
-        $headersMarkdown = '';
-        foreach ($validated['headers'] as $header) {
-            // Convertir cada H2
-            $headersMarkdown .= "## " . $header['h2'] . "\n\n";
-
-            // Convertir cada H3 debajo del H2
-            foreach ($header['h3'] as $subheader) {
-                $headersMarkdown .= "### " . $subheader . "\n\n";
-            }
-        }
-
-
-        $sampleText = "# {$validated['keyword']}
-
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec a diam lectus. Sed sit amet ipsum mauris.
-
-        ## {$headersMarkdown}
-
-        Vestibulum auctor dapibus neque. **Nunc dignissim risus id metus.** Cras ornare tristique elit. Vivamus vestibulum sagittis diam.
-
-        ### Vivamus Vestibulum Sagittis
-
-        Phasellus fermentum in, dolor. Pellentesque facilisis. Nulla imperdiet sit amet magna. **Vestibulum dapibus**, mauris nec malesuada fames ac turpis velit.
-
-        #### Pellentesque Facilisis
-
-        - Lorem ipsum dolor sit amet
-        - Consectetur adipiscing elit
-        - Proin pharetra nonummy pede
-        - Mauris et orci
-        - Nulla facilisi
-
-        1. Integer malesuada
-        2. Cras ornare tristique elit
-        3. Nullam vel sem
-        1. Aenean dignissim
-        2. Phasellus ultrices nulla
-
-        > \"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin fringilla, augue id viverra venenatis, justo libero mattis nisi, ac efficitur turpis nisi in ligula.\"  
-        > — John Doe
-
-        Fusce venenatis, quam sit amet **venenatis** tincidunt, lacus nunc vehicula nisi, eget fringilla velit quam nec lacus.";
-        $sampleText = preg_replace('/^\s+/m', '', $sampleText);
-
-        $title = ucfirst($validated['keyword']);
-
-        $article = Article::create([
-            'user_id' => Auth::id(),
-            'title' => $title,
-            'content' => $sampleText,
-        ]);
-
-        return response()->json([
-            'content' => $sampleText
-        ]);
-    } */
 
 
     public function index()
