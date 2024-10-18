@@ -56,12 +56,12 @@ class ArticleController extends Controller
                 ->withOptions(['verify' => false])
                 ->timeout(240)
                 ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4',
+                    'model' => 'gpt-3.5-turbo',
                     'messages' => [
                         ['role' => 'system', 'content' => $system],
                         ['role' => 'user', 'content' => $userCommand]
                     ],
-                    'max_tokens' => 3500,
+                    'max_tokens' => 4000,
                     'temperature' => 1,
                     'top_p' => 0.8,
                     'frequency_penalty' => 0.3,
