@@ -3,7 +3,7 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -18,6 +18,12 @@ const form = useForm({
 });
 
 const apiKeyVisible = ref(false);
+
+const maskedApiKey = computed(() => {
+    const apiKey = form.apiKey ?? ''; // Provide fallback if form.apiKey is null
+    return apiKeyVisible.value ? apiKey : apiKey.replace(/.(?=.{4})/g, '*');
+});
+
 
 const saveApiKey = () => {
     form.post(route('profile.update-api-key'), {
@@ -47,7 +53,7 @@ const saveApiKey = () => {
                     id="api-key"
                     type="text"
                     v-model="form.apiKey"
-                    :value="apiKeyVisible ? form.apiKey : form.apiKey.replace(/.(?=.{4})/g, '*')"
+                    :value="maskedApiKey" 
                     class="w-full pr-10"
                 />
                 <button
