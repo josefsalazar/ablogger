@@ -53,6 +53,13 @@
         >
           <option value="english">English</option>
           <option value="spanish">Spanish</option>
+          <option value="spanish">French</option>
+          <option value="spanish">German</option>
+          <option value="spanish">Portuguese</option>
+          <option value="spanish">Italian</option>
+          <option value="spanish">Russian</option>
+          <option value="spanish">Norwegian</option>
+          <option value="spanish">Icelandic</option>
         </select>
       </div>
 
@@ -78,6 +85,8 @@
           <option value="Blog">Blog</option>
           <option value="Lista">Lista</option>
           <option value="Guía">Guía</option>
+          <option value="Tutorial">Tutorial</option>
+          <option value="Comparativo">Comparativo</option>
         </select>
       </div>
       <div class="w-100 flex flex-row space-x-4">
@@ -91,15 +100,62 @@
           class="mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-300 dark:border-blue-600 dark:text-gray-700"
         />
       </div>
+      <div class="w-100">
+        <label class="block text-gray-700 dark:text-gray-300" for="perspective">Perspective</label>
+        <select
+          id="perspective"
+          v-model="form.perspective"
+          class="mt-1 w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+        >
+          <option value="first_person">Primera persona (Yo/Nosotros)</option>
+          <option value="second_person">Segunda persona (Tú/Usted)</option>
+          <option value="third_person">Tercera persona (Él/Ella/Ellos)</option>
+        </select>
+      </div>
+      
+      <div class="w-100">
+        <label class="block text-gray-700 dark:text-gray-300" for="text-intention">Text Intention</label>
+        <select
+          id="text-intention"
+          v-model="form.textIntention"
+          class="mt-1 w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+        >
+          <option value="Informativa">Informativa</option>
+          <option value="Persuasiva">Persuasiva</option>
+          <option value="Narrativa">Narrativa</option>
+          <option value="Descriptiva">Descriptiva</option>
+          <option value="Exhortativa">Exhortativa</option>
+          <option value="Expositiva">Expositiva</option>
+          <option value="Argumentativa">Argumentativa</option>
+          <option value="Instructiva">Instructiva</option>
+          <option value="Emotiva">Emotiva</option>
+          <option value="Apreciativa">Apreciativa</option>
+          <option value="Opinionado">Opinionado</option>
+        </select>
+      </div>
+
+
     </div>
 
     <!-- Article Length Slider -->
     <div class="mb-4">
-      <label class="block text-gray-700 dark:text-gray-300" for="article-length">Article Length</label>
+      <label class="block text-gray-700 dark:text-gray-300" for="article-length">H2 Length</label>
       <input
         type="range"
         id="article-length"
         v-model="form.article_length"
+        min="1"
+        max="5"
+        step="1"
+        class="w-full"
+      />
+    </div>
+    <div class="mb-4">
+      <label class="block text-gray-700 dark:text-gray-300" for="h3-length">H3 Length</label>
+      <input
+        type="range"
+        id="h3-length"
+        v-model="form.h3Length"
         min="1"
         max="5"
         step="1"
@@ -267,10 +323,13 @@ const form = reactive({
   style: 'professional',
   language: 'english',
   article_length: 2,
+  h3Length: 2,
   content: '',
   model: 'gpt-3.5-turbo',
   format: 'Blog',
-  takeaways: false
+  takeaways: false,
+  perspective: 'first_person',
+  textIntention: 'Informativa'
 });
 
 const editor = ref(null);
